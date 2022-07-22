@@ -92,6 +92,7 @@ var toDiscoveryKubeVerb = map[string]string{
 	"PUT":              "update",
 	"WATCH":            "watch",
 	"WATCHLIST":        "watch",
+	"REBOOT":           "reboot",
 }
 
 // Install handlers for API resources.
@@ -250,6 +251,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	connecter, isConnecter := storage.(rest.Connecter)
 	storageMeta, isMetadata := storage.(rest.StorageMetadata)
 	storageVersionProvider, isStorageVersionProvider := storage.(rest.StorageVersionProvider)
+	rebooter, isRebooter := storage.(rest.Rebooter)
 	gvAcceptor, _ := storage.(rest.GroupVersionAcceptor)
 	if !isMetadata {
 		storageMeta = defaultStorageMetadata{}
@@ -447,6 +449,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		actions = appendIf(actions, action{"PUT", itemPath, nameParams, namer, false}, isUpdater)
 		actions = appendIf(actions, action{"PATCH", itemPath, nameParams, namer, false}, isPatcher)
 		actions = appendIf(actions, action{"DELETE", itemPath, nameParams, namer, false}, isGracefulDeleter)
+		actions = appendIf(actions, action{"REBOOT", itemPath, nameParams, namer, false}, isRebooter)
 		// DEPRECATED in 1.11
 		actions = appendIf(actions, action{"WATCH", "watch/" + itemPath, nameParams, namer, false}, isWatcher)
 		actions = appendIf(actions, action{"CONNECT", itemPath, nameParams, namer, false}, isConnecter)
@@ -686,6 +689,15 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		}
 
 		switch action.Verb {
+		case "REBOOT":
+			doc := "reboot node"
+			h := func(req *restful.Request, res *restful.Response) {
+				rebooter.Reboot(req.Request.Context(), req.PathParameter("name"))
+			}
+
+			route := ws.Method("REBOOT").Path(action.Path).To(h).Doc(doc).Operation("reboot" + strings.Title(kind))
+			routes = append(routes, route)
+
 		case "GET": // Get a resource.
 			var handler restful.RouteFunction
 			if isGetterWithOptions {
@@ -1224,6 +1236,12 @@ func restfulGetResourceWithOptions(r rest.GetterWithOptions, scope handlers.Requ
 }
 
 func restfulConnectResource(connecter rest.Connecter, scope handlers.RequestScope, admit admission.Interface, restPath string, isSubresource bool) restful.RouteFunction {
+	return func(req *restful.Request, res *restful.Response) {
+		handlers.ConnectResource(connecter, &scope, admit, restPath, isSubresource)(res.ResponseWriter, req.Request)
+	}
+}
+
+func restfulRebootResource(connecter rest.Connecter, scope handlers.RequestScope, admit admission.Interface, restPath string, isSubresource bool) restful.RouteFunction {
 	return func(req *restful.Request, res *restful.Response) {
 		handlers.ConnectResource(connecter, &scope, admit, restPath, isSubresource)(res.ResponseWriter, req.Request)
 	}

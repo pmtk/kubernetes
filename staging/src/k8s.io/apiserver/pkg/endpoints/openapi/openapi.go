@@ -33,7 +33,7 @@ import (
 	"k8s.io/kube-openapi/pkg/validation/spec"
 )
 
-var verbs = util.NewTrie([]string{"get", "log", "read", "replace", "patch", "delete", "deletecollection", "watch", "connect", "proxy", "list", "create", "patch"})
+var verbs = util.NewTrie([]string{"get", "log", "read", "replace", "patch", "delete", "deletecollection", "watch", "connect", "proxy", "list", "create", "patch", "reboot"})
 
 const (
 	extensionGVK = "x-kubernetes-group-version-kind"

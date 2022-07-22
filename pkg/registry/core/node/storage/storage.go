@@ -25,6 +25,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
@@ -54,6 +55,24 @@ type REST struct {
 	*genericregistry.Store
 	connection     client.ConnectionInfoGetter
 	proxyTransport http.RoundTripper
+}
+
+var _ rest.Rebooter = (*REST)(nil)
+
+func (r *REST) Reboot(ctx context.Context, id string) error {
+	connInfo, err := r.connection.GetConnectionInfo(ctx, types.NodeName(id))
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s:%s/reboot", connInfo.Scheme, connInfo.Hostname, connInfo.Port), nil)
+	if err != nil {
+		return err
+	}
+	resp, err := connInfo.Transport.RoundTrip(req)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("kubelet didn't responded with ok")
+	}
+	return err
 }
 
 // StatusREST implements the REST endpoint for changing the status of a node.

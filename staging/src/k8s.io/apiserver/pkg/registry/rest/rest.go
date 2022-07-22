@@ -377,3 +377,7 @@ type UpdateResetFieldsStrategy interface {
 	RESTUpdateStrategy
 	ResetFieldsStrategy
 }
+
+type Rebooter interface {
+	Reboot(ctx context.Context, id string) error
+}

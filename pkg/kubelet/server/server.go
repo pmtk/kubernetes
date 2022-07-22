@@ -254,6 +254,7 @@ func NewServer(
 		server.InstallAuthFilter()
 	}
 	server.InstallDefaultHandlers()
+	server.InstallRebootHandler()
 	if kubeCfg != nil && kubeCfg.EnableDebuggingHandlers {
 		server.InstallDebuggingHandlers()
 		// To maintain backward compatibility serve logs and pprof only when enableDebuggingHandlers is also enabled
@@ -416,6 +417,23 @@ func (s *Server) InstallDefaultHandlers() {
 			Operation("checkpoint"))
 		s.restfulCont.Add(ws)
 	}
+}
+
+func (s *Server) InstallRebootHandler() {
+	klog.InfoS("Adding reboot handler to kubelet server")
+
+	s.addMetricsBucketMatcher("reboot")
+	ws := new(restful.WebService)
+	ws.Path("/reboot")
+	ws.Route(ws.POST("/").
+		To(s.reboot).
+		Operation("reboot"))
+	s.restfulCont.Add(ws)
+}
+
+func (s *Server) reboot(request *restful.Request, response *restful.Response) {
+	klog.InfoS("reboot()", "request", request)
+	response.WriteHeader(http.StatusOK)
 }
 
 // InstallDebuggingHandlers registers the HTTP request patterns that serve logs or run commands/containers
