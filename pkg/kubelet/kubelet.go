@@ -94,6 +94,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/preemption"
 	"k8s.io/kubernetes/pkg/kubelet/prober"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
+	"k8s.io/kubernetes/pkg/kubelet/reboot"
 	"k8s.io/kubernetes/pkg/kubelet/runtimeclass"
 	"k8s.io/kubernetes/pkg/kubelet/secret"
 	"k8s.io/kubernetes/pkg/kubelet/server"
@@ -206,7 +207,7 @@ type Bootstrap interface {
 	GetConfiguration() kubeletconfiginternal.KubeletConfiguration
 	BirthCry()
 	StartGarbageCollection()
-	ListenAndServe(kubeCfg *kubeletconfiginternal.KubeletConfiguration, tlsOptions *server.TLSOptions, auth server.AuthInterface)
+	ListenAndServe(kubeCfg *kubeletconfiginternal.KubeletConfiguration, tlsOptions *server.TLSOptions, auth server.AuthInterface, rebootManager reboot.Manager)
 	ListenAndServeReadOnly(address net.IP, port uint)
 	ListenAndServePodResources()
 	Run(<-chan kubetypes.PodUpdate)
@@ -241,6 +242,7 @@ type Dependencies struct {
 	TLSOptions           *server.TLSOptions
 	RemoteRuntimeService internalapi.RuntimeService
 	RemoteImageService   internalapi.ImageManagerService
+	RebootManager        reboot.Manager
 	// remove it after cadvisor.UsingLegacyCadvisorStats dropped.
 	useLegacyCadvisorStats bool
 }
@@ -838,6 +840,9 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	klet.shutdownManager = shutdownManager
 	klet.admitHandlers.AddPodAdmitHandler(shutdownAdmitHandler)
 
+	klet.rebootManager = kubeDeps.RebootManager
+	klet.rebootManager.SetNodeShutdownManager(shutdownManager)
+
 	// Finally, put the most recent version of the config on the Kubelet, so
 	// people can see how it was configured.
 	klet.kubeletConfiguration = *kubeCfg
@@ -1174,6 +1179,9 @@ type Kubelet struct {
 
 	// Handles node shutdown events for the Node.
 	shutdownManager nodeshutdown.Manager
+
+	// Handles reboot requests.
+	rebootManager reboot.Manager
 }
 
 // ListPodStats is delegated to StatsProvider, which implements stats.Provider interface
@@ -2393,8 +2401,8 @@ func (kl *Kubelet) ResyncInterval() time.Duration {
 
 // ListenAndServe runs the kubelet HTTP server.
 func (kl *Kubelet) ListenAndServe(kubeCfg *kubeletconfiginternal.KubeletConfiguration, tlsOptions *server.TLSOptions,
-	auth server.AuthInterface) {
-	server.ListenAndServeKubeletServer(kl, kl.resourceAnalyzer, kubeCfg, tlsOptions, auth)
+	auth server.AuthInterface, rebootManager reboot.Manager) {
+	server.ListenAndServeKubeletServer(kl, kl.resourceAnalyzer, kubeCfg, tlsOptions, auth, rebootManager)
 }
 
 // ListenAndServeReadOnly runs the kubelet HTTP server in read-only mode.

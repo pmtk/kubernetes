@@ -19,6 +19,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -69,10 +70,17 @@ func (r *REST) Reboot(ctx context.Context, id string) error {
 		return err
 	}
 	resp, err := connInfo.Transport.RoundTrip(req)
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("kubelet didn't responded with ok")
+	if err != nil {
+		return err
 	}
-	return err
+	if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("kubelet responded with code %d, but failed to read response body: %w", resp.StatusCode, err)
+		}
+		return fmt.Errorf("kubelet responded with code %d and message: %s", resp.StatusCode, string(body))
+	}
+	return nil
 }
 
 // StatusREST implements the REST endpoint for changing the status of a node.

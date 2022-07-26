@@ -692,10 +692,18 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		case "REBOOT":
 			doc := "reboot node"
 			h := func(req *restful.Request, res *restful.Response) {
-				rebooter.Reboot(req.Request.Context(), req.PathParameter("name"))
+				err := rebooter.Reboot(req.Request.Context(), req.PathParameter("name"))
+				if err != nil {
+					res.WriteError(http.StatusBadRequest, err)
+				}
+				res.WriteHeader(http.StatusOK)
 			}
 
-			route := ws.Method("REBOOT").Path(action.Path).To(h).Doc(doc).Operation("reboot" + strings.Title(kind))
+			route := ws.Method("REBOOT").Path(action.Path).To(h).Doc(doc).Operation("reboot"+strings.Title(kind)).Produces(restful.MIME_JSON).
+				Returns(http.StatusOK, "OK", "").
+				Returns(http.StatusBadRequest, "NOK", "").
+				Returns(http.StatusInternalServerError, "NOK", "")
+
 			routes = append(routes, route)
 
 		case "GET": // Get a resource.
@@ -1236,12 +1244,6 @@ func restfulGetResourceWithOptions(r rest.GetterWithOptions, scope handlers.Requ
 }
 
 func restfulConnectResource(connecter rest.Connecter, scope handlers.RequestScope, admit admission.Interface, restPath string, isSubresource bool) restful.RouteFunction {
-	return func(req *restful.Request, res *restful.Response) {
-		handlers.ConnectResource(connecter, &scope, admit, restPath, isSubresource)(res.ResponseWriter, req.Request)
-	}
-}
-
-func restfulRebootResource(connecter rest.Connecter, scope handlers.RequestScope, admit admission.Interface, restPath string, isSubresource bool) restful.RouteFunction {
 	return func(req *restful.Request, res *restful.Response) {
 		handlers.ConnectResource(connecter, &scope, admit, restPath, isSubresource)(res.ResponseWriter, req.Request)
 	}

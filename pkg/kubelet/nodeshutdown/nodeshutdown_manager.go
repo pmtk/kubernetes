@@ -34,6 +34,7 @@ type Manager interface {
 	Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAdmitResult
 	Start() error
 	ShutdownStatus() error
+	TriggerShutdownProcedure() error
 }
 
 // Config represents Manager configuration
@@ -67,5 +68,9 @@ func (managerStub) Start() error {
 
 // ShutdownStatus is a no-op always returning nil for non linux platforms.
 func (managerStub) ShutdownStatus() error {
+	return nil
+}
+
+func (managerStub) TriggerShutdownProcedure() error {
 	return nil
 }

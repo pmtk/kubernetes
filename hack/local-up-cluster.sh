@@ -759,6 +759,8 @@ failSwapOn: ${FAIL_SWAP_ON}
 port: ${KUBELET_PORT}
 readOnlyPort: ${KUBELET_READ_ONLY_PORT}
 rotateCertificates: true
+shutdownGracePeriod: 30s
+shutdownGracePeriodCriticalPods: 30s
 runtimeRequestTimeout: "${RUNTIME_REQUEST_TIMEOUT}"
 staticPodPath: "${POD_MANIFEST_PATH}"
 resolvConf: "${KUBELET_RESOLV_CONF}"

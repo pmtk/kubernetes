@@ -40,6 +40,7 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/kubelet/metrics/collectors"
+	"k8s.io/kubernetes/pkg/kubelet/reboot"
 	"k8s.io/utils/clock"
 	netutils "k8s.io/utils/net"
 
@@ -101,6 +102,7 @@ type Server struct {
 	metricsBuckets       sets.String
 	metricsMethodBuckets sets.String
 	resourceAnalyzer     stats.ResourceAnalyzer
+	rebootManager        reboot.Manager
 }
 
 // TLSOptions holds the TLS options.
@@ -144,12 +146,13 @@ func ListenAndServeKubeletServer(
 	resourceAnalyzer stats.ResourceAnalyzer,
 	kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	tlsOptions *TLSOptions,
-	auth AuthInterface) {
+	auth AuthInterface,
+	rebootManager reboot.Manager) {
 
 	address := netutils.ParseIPSloppy(kubeCfg.Address)
 	port := uint(kubeCfg.Port)
 	klog.InfoS("Starting to listen", "address", address, "port", port)
-	handler := NewServer(host, resourceAnalyzer, auth, kubeCfg)
+	handler := NewServer(host, resourceAnalyzer, auth, kubeCfg, rebootManager)
 	s := &http.Server{
 		Addr:           net.JoinHostPort(address.String(), strconv.FormatUint(uint64(port), 10)),
 		Handler:        &handler,
@@ -176,7 +179,7 @@ func ListenAndServeKubeletServer(
 // ListenAndServeKubeletReadOnlyServer initializes a server to respond to HTTP network requests on the Kubelet.
 func ListenAndServeKubeletReadOnlyServer(host HostInterface, resourceAnalyzer stats.ResourceAnalyzer, address net.IP, port uint) {
 	klog.InfoS("Starting to listen read-only", "address", address, "port", port)
-	s := NewServer(host, resourceAnalyzer, nil, nil)
+	s := NewServer(host, resourceAnalyzer, nil, nil, nil)
 
 	server := &http.Server{
 		Addr:           net.JoinHostPort(address.String(), strconv.FormatUint(uint64(port), 10)),
@@ -241,7 +244,8 @@ func NewServer(
 	host HostInterface,
 	resourceAnalyzer stats.ResourceAnalyzer,
 	auth AuthInterface,
-	kubeCfg *kubeletconfiginternal.KubeletConfiguration) Server {
+	kubeCfg *kubeletconfiginternal.KubeletConfiguration,
+	rebootManager reboot.Manager) Server {
 	server := Server{
 		host:                 host,
 		resourceAnalyzer:     resourceAnalyzer,
@@ -249,6 +253,7 @@ func NewServer(
 		restfulCont:          &filteringContainer{Container: restful.NewContainer()},
 		metricsBuckets:       sets.NewString(),
 		metricsMethodBuckets: sets.NewString("OPTIONS", "GET", "HEAD", "POST", "PUT", "DELETE", "TRACE", "CONNECT"),
+		rebootManager:        rebootManager,
 	}
 	if auth != nil {
 		server.InstallAuthFilter()
@@ -433,7 +438,19 @@ func (s *Server) InstallRebootHandler() {
 
 func (s *Server) reboot(request *restful.Request, response *restful.Response) {
 	klog.InfoS("reboot()", "request", request)
-	response.WriteHeader(http.StatusOK)
+	if s.auth == nil {
+		response.WriteErrorString(http.StatusBadRequest, "reboot not possible on readonly port")
+		return
+	}
+	if s.rebootManager == nil {
+		response.WriteErrorString(http.StatusInternalServerError, "reboot manager not initialized")
+		return
+	}
+	if err := s.rebootManager.Run(); err != nil {
+		response.WriteError(http.StatusInternalServerError, err)
+	} else {
+		response.WriteHeader(http.StatusOK)
+	}
 }
 
 // InstallDebuggingHandlers registers the HTTP request patterns that serve logs or run commands/containers

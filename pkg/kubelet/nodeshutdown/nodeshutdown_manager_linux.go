@@ -262,36 +262,39 @@ func (m *managerImpl) start() (chan struct{}, error) {
 					return
 				}
 				m.logger.V(1).Info("Shutdown manager detected new shutdown event, isNodeShuttingDownNow", "event", isShuttingDown)
-
-				var shutdownType string
-				if isShuttingDown {
-					shutdownType = "shutdown"
-				} else {
-					shutdownType = "cancelled"
-				}
-				m.logger.V(1).Info("Shutdown manager detected new shutdown event", "event", shutdownType)
-				if isShuttingDown {
-					m.recorder.Event(m.nodeRef, v1.EventTypeNormal, kubeletevents.NodeShutdown, "Shutdown manager detected shutdown event")
-				} else {
-					m.recorder.Event(m.nodeRef, v1.EventTypeNormal, kubeletevents.NodeShutdown, "Shutdown manager detected shutdown cancellation")
-				}
-
-				m.nodeShuttingDownMutex.Lock()
-				m.nodeShuttingDownNow = isShuttingDown
-				m.nodeShuttingDownMutex.Unlock()
-
-				if isShuttingDown {
-					// Update node status and ready condition
-					go m.syncNodeStatus()
-
-					m.processShutdownEvent()
-				} else {
-					m.aquireInhibitLock()
-				}
+				m.processTrigger(isShuttingDown)
 			}
 		}
 	}()
 	return stop, nil
+}
+
+func (m *managerImpl) processTrigger(isShuttingDown bool) {
+	var shutdownType string
+	if isShuttingDown {
+		shutdownType = "shutdown"
+	} else {
+		shutdownType = "cancelled"
+	}
+	m.logger.V(1).Info("Shutdown manager detected new shutdown event", "event", shutdownType)
+	if isShuttingDown {
+		m.recorder.Event(m.nodeRef, v1.EventTypeNormal, kubeletevents.NodeShutdown, "Shutdown manager detected shutdown event")
+	} else {
+		m.recorder.Event(m.nodeRef, v1.EventTypeNormal, kubeletevents.NodeShutdown, "Shutdown manager detected shutdown cancellation")
+	}
+
+	m.nodeShuttingDownMutex.Lock()
+	m.nodeShuttingDownNow = isShuttingDown
+	m.nodeShuttingDownMutex.Unlock()
+
+	if isShuttingDown {
+		// Update node status and ready condition
+		go m.syncNodeStatus()
+
+		m.processShutdownEvent()
+	} else {
+		m.aquireInhibitLock()
+	}
 }
 
 func (m *managerImpl) aquireInhibitLock() error {
@@ -414,6 +417,11 @@ func (m *managerImpl) periodRequested() time.Duration {
 		sum += period.ShutdownGracePeriodSeconds
 	}
 	return time.Duration(sum) * time.Second
+}
+
+func (m *managerImpl) TriggerShutdownProcedure() error {
+	m.processTrigger(true)
+	return nil
 }
 
 func migrateConfig(shutdownGracePeriodRequested, shutdownGracePeriodCriticalPods time.Duration) []kubeletconfig.ShutdownGracePeriodByPodPriority {
