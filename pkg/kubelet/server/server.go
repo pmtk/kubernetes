@@ -429,10 +429,13 @@ func (s *Server) InstallRebootHandler() {
 
 	s.addMetricsBucketMatcher("reboot")
 	ws := new(restful.WebService)
-	ws.Path("/reboot")
-	ws.Route(ws.POST("/").
-		To(s.reboot).
-		Operation("reboot"))
+
+	// ws.Path("/reboot")
+	// ws.Route(ws.POST("/").To(s.reboot).Operation("reboot"))
+
+	ws.Path("/")
+	ws.Route(ws.Method("REBOOT").To(s.reboot).Operation("reboot"))
+
 	s.restfulCont.Add(ws)
 }
 

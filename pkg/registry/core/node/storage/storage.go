@@ -65,7 +65,8 @@ func (r *REST) Reboot(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s:%s/reboot", connInfo.Scheme, connInfo.Hostname, connInfo.Port), nil)
+	req, err := http.NewRequest("REBOOT", fmt.Sprintf("%s://%s:%s/", connInfo.Scheme, connInfo.Hostname, connInfo.Port), nil)
+	// req, err := http.NewRequest("POST", fmt.Sprintf("%s://%s:%s/reboot", connInfo.Scheme, connInfo.Hostname, connInfo.Port), nil)
 	if err != nil {
 		return err
 	}
