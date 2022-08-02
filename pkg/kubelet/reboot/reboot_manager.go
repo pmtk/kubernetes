@@ -10,3 +10,13 @@ type Manager interface {
 	SetNodeShutdownManager(mgr nodeshutdown.Manager)
 	Run() error
 }
+
+var _ Manager = (*managerStub)(nil)
+
+type managerStub struct { }
+
+func (h *managerStub) SetNodeShutdownManager(mgr nodeshutdown.Manager) { }
+
+func (h *managerStub) Run() error {
+	return nil
+}
